@@ -17,14 +17,26 @@ jobs:
 
       - name: Add upstream
         run: |
+          git remote remove upstream || true
           git remote add upstream https://github.com/mcp-use/mcp-use.git
           git fetch upstream
 
       - name: Merge upstream/main into upstream-main
+        id: merge
         run: |
-          git merge upstream/main --no-edit || true
+          if git merge upstream/main --no-edit; then
+            echo "merge_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "merge_success=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Create Pull Request if conflict
+      - name: Push changes (if merge successful)
+        if: steps.merge.outputs.merge_success == 'true'
+        run: |
+          git push origin upstream-main
+
+      - name: Create Pull Request (if conflict)
+        if: steps.merge.outputs.merge_success == 'false'
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "chore: sync with upstream"
@@ -32,7 +44,3 @@ jobs:
           body: "Auto sync latest upstream changes."
           branch: sync/upstream
           base: upstream-main
-
-      - name: Push changes
-        run: |
-          git push origin upstream-main || true
