@@ -167,6 +167,7 @@ class MCPAgent:
         self._agent_executor = None
         self._system_message: SystemMessage | None = None
         self._tools: list[BaseTool] = []
+        self._reasoning_plan: str | None = None  # Store reasoning plan for retrieval
 
         # Track model info for telemetry
         self._model_provider, self._model_name = extract_model_info(self.llm)
@@ -394,6 +395,155 @@ class MCPAgent:
         """
         return self.disallowed_tools
 
+    def get_reasoning_plan(self) -> str | None:
+        """Get the reasoning plan from the last execution.
+
+        Returns:
+            The reasoning plan string if reasoning=True was used in the last run/stream call,
+            None otherwise.
+        """
+        return self._reasoning_plan
+
+    def _get_tool_server_mapping(self) -> dict[str, str]:
+        """Get mapping of tool names to server names.
+
+        Returns:
+            Dictionary mapping tool names to server names.
+        """
+        tool_server_map: dict[str, str] = {}
+
+        if self.use_server_manager and self.server_manager:
+            # For server manager mode, get tools from server manager
+            management_tools = self.server_manager.get_management_tools()
+            for tool in management_tools:
+                tool_server_map[tool.name] = "server_manager"
+
+            # Get tools from active server
+            if self.server_manager.active_server:
+                active_tools = self.server_manager.get_active_server_tools()
+                for tool in active_tools:
+                    tool_server_map[tool.name] = self.server_manager.active_server
+
+            # Get tools from all cached servers
+            for server_name, tools in self.server_manager._server_tools.items():
+                for tool in tools:
+                    if tool.name not in tool_server_map:
+                        tool_server_map[tool.name] = server_name
+        else:
+            # For standard mode, get mapping from adapter's connector_tool_map
+            if hasattr(self.adapter, "_connector_tool_map"):
+                for connector, tools in self.adapter._connector_tool_map.items():
+                    server_name = getattr(connector, "public_identifier", "unknown")
+                    for tool in tools:
+                        tool_server_map[tool.name] = server_name
+
+            # Also check resources and prompts
+            if hasattr(self.adapter, "_connector_resource_map"):
+                for connector, resources in self.adapter._connector_resource_map.items():
+                    server_name = getattr(connector, "public_identifier", "unknown")
+                    for resource in resources:
+                        tool_server_map[resource.name] = server_name
+
+            if hasattr(self.adapter, "_connector_prompt_map"):
+                for connector, prompts in self.adapter._connector_prompt_map.items():
+                    server_name = getattr(connector, "public_identifier", "unknown")
+                    for prompt in prompts:
+                        tool_server_map[prompt.name] = server_name
+
+            # Fallback: try to get from client sessions
+            if self.client and hasattr(self, "_sessions"):
+                for server_name, session in self._sessions.items():
+                    connector = session.connector
+                    # Try to find tools for this connector
+                    if hasattr(self.adapter, "_connector_tool_map"):
+                        for conn, tools in self.adapter._connector_tool_map.items():
+                            if conn == connector:
+                                for tool in tools:
+                                    if tool.name not in tool_server_map:
+                                        tool_server_map[tool.name] = server_name
+
+        return tool_server_map
+
+    async def _generate_reasoning_plan(
+        self,
+        query: str,
+    ) -> str:
+        """Generate a reasoning plan that lists which MCP servers and tools will be used.
+
+        Args:
+            query: The user query.
+
+        Returns:
+            A formatted string describing the plan.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # Get available tools and their server mappings
+        tool_server_map = self._get_tool_server_mapping()
+        available_tools = self._tools if self._tools else []
+
+        # Build tool information for the LLM
+        tool_info_list = []
+        for tool in available_tools:
+            server_name = tool_server_map.get(tool.name, "unknown")
+            tool_info_list.append(
+                f"- {tool.name} (Server: {server_name}): {tool.description}"
+            )
+
+        tool_info = "\n".join(tool_info_list) if tool_info_list else "No tools available."
+
+        # Create a prompt for the LLM to generate a plan
+        planning_prompt = f"""You are an AI assistant that needs to plan how to answer a user's query using available MCP (Model Context Protocol) tools.
+
+User Query: {query}
+
+Available Tools:
+{tool_info}
+
+Please analyze the query and create a plan that specifies:
+1. Which MCP servers need to be used (if using server manager mode)
+2. Which specific tools from each server should be called
+3. The order in which tools should be called
+4. A brief explanation of why each tool is needed
+
+Format your response as a clear, structured plan. Be specific about tool names and server names."""
+
+        try:
+            # Use the LLM to generate the plan
+            from langchain_core.messages import HumanMessage
+
+            messages = [HumanMessage(content=planning_prompt)]
+            response = await self.llm.ainvoke(messages)
+            plan = self._normalize_output(response)
+
+            # Format the plan output
+            formatted_plan = f"""
+{'='*60}
+REASONING PLAN
+{'='*60}
+{plan}
+{'='*60}
+"""
+            logger.info(f"📋 Generated reasoning plan:\n{formatted_plan}")
+            return formatted_plan
+        except Exception as e:
+            logger.warning(f"Failed to generate reasoning plan: {e}")
+            # Fallback: create a simple plan based on available tools
+            plan = f"""
+{'='*60}
+REASONING PLAN
+{'='*60}
+Query: {query}
+
+Available Tools:
+{tool_info}
+
+Note: Automatic planning failed. The agent will proceed with available tools.
+{'='*60}
+"""
+            return plan
+
     async def _consume_and_return(
         self,
         generator: AsyncGenerator[str | T, None],
@@ -426,6 +576,7 @@ class MCPAgent:
         manage_connector: bool = True,
         external_history: list[BaseMessage] | None = None,
         output_schema: type[T] | None = None,
+        reasoning: bool = False,
     ) -> str | T:
         """Run a query using LangChain 1.0.0's agent and return the final result.
 
@@ -436,6 +587,7 @@ class MCPAgent:
             external_history: Optional external history to use instead of the
                 internal conversation history.
             output_schema: Optional Pydantic BaseModel class for structured output.
+            reasoning: If True, generate and output a reasoning plan before execution.
 
         Returns:
             The result of running the query as a string, or if output_schema is provided,
@@ -445,6 +597,12 @@ class MCPAgent:
             ```python
             # Regular usage
             result = await agent.run("What's the weather like?")
+
+            # With reasoning plan
+            result = await agent.run(
+                "Find the best restaurant in San Francisco",
+                reasoning=True
+            )
 
             # Structured output usage
             from pydantic import BaseModel, Field
@@ -461,11 +619,24 @@ class MCPAgent:
         """
         # Delegate to remote agent if in remote mode
         if self._is_remote and self._remote_agent:
+            # Note: Remote agent may not support reasoning parameter yet
+            # For now, we'll just log a warning if reasoning is requested
+            if reasoning:
+                logger.warning("Reasoning parameter is not yet supported for remote agents")
             result = await self._remote_agent.run(query, max_steps, external_history, output_schema)
             return result
 
         success = True
         start_time = time.time()
+
+        # Generate reasoning plan if requested
+        plan = None
+        if reasoning:
+            plan = await self._generate_reasoning_plan(query)
+            self._reasoning_plan = plan  # Store plan for retrieval
+            print(plan)  # Output the plan before execution
+        else:
+            self._reasoning_plan = None  # Clear previous plan
 
         generator = self.stream(
             query,
@@ -474,6 +645,7 @@ class MCPAgent:
             external_history,
             track_execution=False,
             output_schema=output_schema,
+            reasoning=False,  # Don't generate plan again in stream
         )
         error = None
         result = None
@@ -590,6 +762,7 @@ class MCPAgent:
         external_history: list[BaseMessage] | None = None,
         track_execution: bool = True,
         output_schema: type[T] | None = None,
+        reasoning: bool = False,
     ) -> AsyncGenerator[tuple[AgentAction, str] | str | T, None]:
         """Async generator using LangChain 1.0.0's create_agent and astream.
 
@@ -616,13 +789,20 @@ class MCPAgent:
             manage_connector: Whether to handle the connector lifecycle internally.
             external_history: Optional external history to use instead of the
                 internal conversation history.
+            track_execution: Whether to track execution metrics.
             output_schema: Optional Pydantic BaseModel class for structured output.
+            reasoning: If True, generate and yield a reasoning plan before execution.
 
         Yields:
             Intermediate steps and final result from the agent execution.
+            If reasoning=True, first yields the reasoning plan as a string.
         """
         # Delegate to remote agent if in remote mode
         if self._is_remote and self._remote_agent:
+            # Note: Remote agent may not support reasoning parameter yet
+            # For now, we'll just log a warning if reasoning is requested
+            if reasoning:
+                logger.warning("Reasoning parameter is not yet supported for remote agents")
             async for item in self._remote_agent.stream(query, max_steps, external_history, output_schema):
                 yield item
             return
@@ -644,6 +824,14 @@ class MCPAgent:
 
             if not self._agent_executor:
                 raise RuntimeError("MCP agent failed to initialize")
+
+            # Generate and yield reasoning plan if requested
+            if reasoning:
+                plan = await self._generate_reasoning_plan(query)
+                self._reasoning_plan = plan  # Store plan for retrieval
+                yield plan
+            else:
+                self._reasoning_plan = None  # Clear previous plan
 
             # Check for tool updates before starting execution (if using server manager)
             if self.use_server_manager and self.server_manager:
