@@ -233,3 +233,162 @@ class TestMCPAgentStream:
 
             assert history_was_used, "External history was not used"
             assert outputs[-1] == "ok"
+
+
+class TestMCPAgentReasoning:
+    """Tests for MCPAgent reasoning functionality"""
+
+    def _mock_llm(self):
+        llm = MagicMock()
+        llm._llm_type = "test-provider"
+        llm._identifying_params = {"model": "test-model"}
+        llm.with_structured_output = MagicMock(return_value=llm)
+        return llm
+
+    @pytest.mark.asyncio
+    async def test_run_with_reasoning_generates_plan(self):
+        """Test that run() with reasoning=True generates and prints a plan."""
+        llm = self._mock_llm()
+        client = MagicMock(spec=MCPClient)
+        agent = MCPAgent(llm=llm, client=client)
+
+        # Mock the reasoning plan generation
+        expected_plan = "REASONING PLAN\nTest plan content"
+        
+        with (
+            patch.object(MCPAgent, "_generate_reasoning_plan", return_value=expected_plan) as mock_plan,
+            patch.object(MCPAgent, "stream") as mock_stream,
+            patch.object(MCPAgent, "_consume_and_return") as mock_consume,
+            patch("builtins.print") as mock_print,
+        ):
+            async def dummy_gen():
+                yield "result"
+
+            async def _aconsume(gen):
+                return ("ok", 1)
+
+            mock_stream.return_value = dummy_gen()
+            mock_consume.side_effect = _aconsume
+
+            result = await agent.run("test query", reasoning=True)
+
+            # Verify plan was generated
+            mock_plan.assert_called_once_with("test query")
+            # Verify plan was printed
+            mock_print.assert_called_once_with(expected_plan)
+            # Verify stream was called with reasoning=False
+            mock_stream.assert_called_once()
+            call_kwargs = mock_stream.call_args[1]
+            assert call_kwargs.get("reasoning") is False
+
+    @pytest.mark.asyncio
+    async def test_stream_with_reasoning_yields_plan_first(self):
+        """Test that stream() with reasoning=True yields plan first."""
+        llm = self._mock_llm()
+        client = MagicMock(spec=MCPClient)
+        agent = MCPAgent(llm=llm, client=client)
+        agent.callbacks = []
+        agent.telemetry = MagicMock()
+
+        expected_plan = "REASONING PLAN\nTest plan content"
+        executor = MagicMock()
+
+        async def _init_side_effect():
+            agent._agent_executor = executor
+            agent._initialized = True
+            agent._tools = []
+
+        async def mock_astream(inputs, stream_mode=None, config=None):
+            yield {"agent": {"messages": [AIMessage(content="done")]}}
+
+        executor.astream = MagicMock(side_effect=mock_astream)
+
+        with (
+            patch.object(MCPAgent, "initialize", side_effect=_init_side_effect),
+            patch.object(MCPAgent, "_generate_reasoning_plan", return_value=expected_plan) as mock_plan,
+        ):
+            outputs = []
+            async for item in agent.stream("test query", reasoning=True):
+                outputs.append(item)
+
+            # Verify plan was generated
+            mock_plan.assert_called_once_with("test query")
+            # Verify plan was yielded first
+            assert outputs[0] == expected_plan
+            # Verify execution continued after plan
+            assert len(outputs) > 1
+
+    @pytest.mark.asyncio
+    async def test_get_tool_server_mapping(self):
+        """Test _get_tool_server_mapping() method."""
+        llm = self._mock_llm()
+        client = MagicMock(spec=MCPClient)
+        agent = MCPAgent(llm=llm, client=client)
+
+        # Create mock tools with connectors
+        from langchain_core.tools import BaseTool
+        from unittest.mock import MagicMock
+
+        mock_tool1 = MagicMock(spec=BaseTool)
+        mock_tool1.name = "tool1"
+        mock_tool2 = MagicMock(spec=BaseTool)
+        mock_tool2.name = "tool2"
+
+        mock_connector1 = MagicMock()
+        mock_connector1.public_identifier = "server1"
+        mock_connector2 = MagicMock()
+        mock_connector2.public_identifier = "server2"
+
+        agent.adapter._connector_tool_map = {
+            mock_connector1: [mock_tool1],
+            mock_connector2: [mock_tool2],
+        }
+
+        mapping = agent._get_tool_server_mapping()
+
+        assert mapping["tool1"] == "server1"
+        assert mapping["tool2"] == "server2"
+
+    @pytest.mark.asyncio
+    async def test_generate_reasoning_plan(self):
+        """Test _generate_reasoning_plan() method."""
+        llm = self._mock_llm()
+        client = MagicMock(spec=MCPClient)
+        agent = MCPAgent(llm=llm, client=client)
+
+        # Mock initialization
+        agent._initialized = True
+        agent._tools = []
+
+        # Mock LLM response
+        mock_response = MagicMock()
+        mock_response.content = "Test plan content"
+        llm.ainvoke = MagicMock(return_value=mock_response)
+
+        plan = await agent._generate_reasoning_plan("test query")
+
+        assert "REASONING PLAN" in plan
+        assert "Test plan content" in plan
+        llm.ainvoke.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reasoning_remote_agent_warning(self):
+        """Test that reasoning parameter logs warning for remote agents."""
+        with (
+            patch("mcp_use.agents.mcpagent.RemoteAgent") as MockRemote,
+            patch("mcp_use.agents.mcpagent.logger") as mock_logger,
+        ):
+            remote_instance = MockRemote.return_value
+            remote_instance.run = MagicMock()
+
+            async def _arun(*args, **kwargs):
+                return "remote-result"
+
+            remote_instance.run.side_effect = _arun
+
+            agent = MCPAgent(agent_id="abc123", api_key="k", base_url="https://x")
+            result = await agent.run("test", reasoning=True)
+
+            # Verify warning was logged
+            mock_logger.warning.assert_called_once()
+            assert "not yet supported for remote agents" in str(mock_logger.warning.call_args[0][0])
