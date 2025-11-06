@@ -1,5 +1,122 @@
 # mcp-use
 
+## 1.2.4
+
+### Patch Changes
+
+- 9209e99: fix: prevent OOM errors by avoiding re-exports of @langchain/core types
+- 9209e99: fix: inspector dependencies
+- Updated dependencies [9209e99]
+  - @mcp-use/inspector@0.4.13
+  - @mcp-use/cli@2.1.25
+
+## 1.2.4-canary.1
+
+### Patch Changes
+
+- 8194ad2: fix: prevent OOM errors by avoiding re-exports of @langchain/core types
+  - @mcp-use/cli@2.1.25-canary.1
+  - @mcp-use/inspector@0.4.13-canary.1
+
+## 1.2.4-canary.0
+
+### Patch Changes
+
+- 8e2210a: fix: inspector dependencies
+- Updated dependencies [8e2210a]
+  - @mcp-use/inspector@0.4.13-canary.0
+  - @mcp-use/cli@2.1.25-canary.0
+
+## 1.2.3
+
+### Patch Changes
+
+- 410c67c: Winston is dynamically imported and not bundled
+- 410c67c: fix: MCPAgent runtime fails with ERR_PACKAGE_PATH_NOT_EXPORTED in Node.js - package.json file didn't include an export path for ./agent, even though the agent code existed in src/agents/. Additionally, the build configuration (tsup.config.ts) wasn't building the agents as a separate entry point.
+  - @mcp-use/cli@2.1.24
+  - @mcp-use/inspector@0.4.12
+
+## 1.2.3-canary.1
+
+### Patch Changes
+
+- 7d0f904: Winston is dynamically imported and not bundled
+  - @mcp-use/cli@2.1.24-canary.1
+  - @mcp-use/inspector@0.4.12-canary.1
+
+## 1.2.3-canary.0
+
+### Patch Changes
+
+- d5ed5ba: fix: MCPAgent runtime fails with ERR_PACKAGE_PATH_NOT_EXPORTED in Node.js - package.json file didn't include an export path for ./agent, even though the agent code existed in src/agents/. Additionally, the build configuration (tsup.config.ts) wasn't building the agents as a separate entry point.
+  - @mcp-use/cli@2.1.24-canary.0
+  - @mcp-use/inspector@0.4.12-canary.0
+
+## 1.2.2
+
+### Patch Changes
+
+- ceed51b: Standardize code formatting with ESLint + Prettier integration
+  - Add Prettier for consistent code formatting across the monorepo
+  - Integrate Prettier with ESLint via `eslint-config-prettier` to prevent conflicts
+  - Configure pre-commit hooks with `lint-staged` to auto-format staged files
+  - Add Prettier format checks to CI pipeline
+  - Remove `@antfu/eslint-config` in favor of unified root ESLint configuration
+  - Enforce semicolons and consistent code style with `.prettierrc.json`
+  - Exclude markdown and JSON files from formatting via `.prettierignore`
+
+- ceed51b: Several major updates:
+  - `useMCP` now uses `BrowserMCPClient` (previously it relied on the unofficial SDK).
+  - Chat functionality works in the Inspector using client-side message handling (LangChain agents run client-side, not in `useMcp` due to browser compatibility limitations).
+  - Chat and Inspector tabs share the same connection.
+  - The agent in Chat now has memory (previously, it didn't retain context from the ongoing conversation).
+  - The client now uses the advertised capability array from the server to determine which functions to call.
+    Previously, it would call functions like `list_resource` regardless of whether the server supported them.
+  - Added PostHog integration in the docs.
+  - Improved error handling throughout the Chat tab and connection process.
+  - Fixed Apps SDK widget rendering with proper parameter passing.
+
+- Updated dependencies [ceed51b]
+- Updated dependencies [ceed51b]
+  - @mcp-use/inspector@0.4.11
+  - @mcp-use/cli@2.1.23
+
+## 1.2.2-canary.1
+
+### Patch Changes
+
+- 3f992c3: Standardize code formatting with ESLint + Prettier integration
+  - Add Prettier for consistent code formatting across the monorepo
+  - Integrate Prettier with ESLint via `eslint-config-prettier` to prevent conflicts
+  - Configure pre-commit hooks with `lint-staged` to auto-format staged files
+  - Add Prettier format checks to CI pipeline
+  - Remove `@antfu/eslint-config` in favor of unified root ESLint configuration
+  - Enforce semicolons and consistent code style with `.prettierrc.json`
+  - Exclude markdown and JSON files from formatting via `.prettierignore`
+
+- Updated dependencies [3f992c3]
+  - @mcp-use/inspector@0.4.11-canary.1
+  - @mcp-use/cli@2.1.23-canary.1
+
+## 1.2.2-canary.0
+
+### Patch Changes
+
+- 38d3c3c: Several major updates:
+  - `useMCP` now uses `BrowserMCPClient` (previously it relied on the unofficial SDK).
+  - Chat functionality works in the Inspector using client-side message handling (LangChain agents run client-side, not in `useMcp` due to browser compatibility limitations).
+  - Chat and Inspector tabs share the same connection.
+  - The agent in Chat now has memory (previously, it didn't retain context from the ongoing conversation).
+  - The client now uses the advertised capability array from the server to determine which functions to call.
+    Previously, it would call functions like `list_resource` regardless of whether the server supported them.
+  - Added PostHog integration in the docs.
+  - Improved error handling throughout the Chat tab and connection process.
+  - Fixed Apps SDK widget rendering with proper parameter passing.
+
+- Updated dependencies [38d3c3c]
+  - @mcp-use/inspector@0.4.11-canary.0
+  - @mcp-use/cli@2.1.23-canary.0
+
 ## 1.2.1
 
 ### Patch Changes
