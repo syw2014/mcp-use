@@ -538,7 +538,13 @@ We love contributions! Check out our contributing guidelines:
 
 ## 📝 Citation
 
-If you use MCP-Use in your research or project, please cite:
+This project is originally based on mcp-use/mcp-use
+ by Pietro Zullo and contributors.
+It has since evolved into an independent fork maintained by Jerry Shi (syw2014)
+,
+with additional modules and integrations (e.g., LangGraph and RAG agent extensions).
+
+If you use this repository or derivatives in your project, please cite:
 
 ```bibtex
 @software{mcp_use2025,
@@ -561,6 +567,7 @@ Thanks to all our amazing contributors!
 1. **Pietro** ([@pietrozullo](https://github.com/pietrozullo))
 2. **Luigi** ([@pederzh](https://github.com/pederzh))
 3. **Enrico** ([@tonxxd](https://github.com/tonxxd))
+
 
 <br>
 
