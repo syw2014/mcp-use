@@ -168,3 +168,5 @@ conf.yaml
 .cursor
 .cursorrules
 .claude
+.cursorindexingignore
+.specstory/
