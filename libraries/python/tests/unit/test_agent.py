@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.agents import AgentFinish
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.tools import BaseTool
 
 from mcp_use.agents.mcpagent import MCPAgent
 from mcp_use.client import MCPClient
@@ -254,7 +255,7 @@ class TestMCPAgentReasoning:
 
         # Mock the reasoning plan generation
         expected_plan = "REASONING PLAN\nTest plan content"
-        
+
         with (
             patch.object(MCPAgent, "_generate_reasoning_plan", return_value=expected_plan) as mock_plan,
             patch.object(MCPAgent, "stream") as mock_stream,
@@ -270,7 +271,7 @@ class TestMCPAgentReasoning:
             mock_stream.return_value = dummy_gen()
             mock_consume.side_effect = _aconsume
 
-            result = await agent.run("test query", reasoning=True)
+            await agent.run("test query", reasoning=True)
 
             # Verify plan was generated
             mock_plan.assert_called_once_with("test query")
@@ -326,8 +327,6 @@ class TestMCPAgentReasoning:
         agent = MCPAgent(llm=llm, client=client)
 
         # Create mock tools with connectors
-        from langchain_core.tools import BaseTool
-        from unittest.mock import MagicMock
 
         mock_tool1 = MagicMock(spec=BaseTool)
         mock_tool1.name = "tool1"
@@ -387,7 +386,7 @@ class TestMCPAgentReasoning:
             remote_instance.run.side_effect = _arun
 
             agent = MCPAgent(agent_id="abc123", api_key="k", base_url="https://x")
-            result = await agent.run("test", reasoning=True)
+            await agent.run("test", reasoning=True)
 
             # Verify warning was logged
             mock_logger.warning.assert_called_once()

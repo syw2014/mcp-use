@@ -47,8 +47,10 @@ async def test_agent_run_with_reasoning():
         logger.info("=" * 80 + "\n")
 
         # Verify reasoning plan was generated and printed
-        assert "REASONING PLAN" in stdout_output or "reasoning" in stdout_output.lower(), "Reasoning plan should be printed"
-        
+        assert (
+            "REASONING PLAN" in stdout_output or "reasoning" in stdout_output.lower()
+        ), "Reasoning plan should be printed"
+
         # Verify execution still works
         assert "100" in result
         assert len(agent.tools_used_names) > 0
@@ -102,11 +104,11 @@ async def test_agent_stream_with_reasoning():
         # Verify reasoning plan was yielded first
         assert plan_received, "Reasoning plan should be yielded first"
         assert len(chunks) > 0, "Should yield at least one chunk"
-        
+
         # Verify execution continued after plan
         assert final_result is not None, "Should have a final result"
         assert "30" in final_result, "Final result should contain the answer (30)"
-        
+
         # Verify tools were used
         assert len(agent.tools_used_names) > 0, "Should have used at least one tool"
         assert "add" in agent.tools_used_names, "Should have used the 'add' tool"

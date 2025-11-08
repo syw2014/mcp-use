@@ -5,34 +5,34 @@ This script demonstrates how to use the reasoning parameter with agent.run() and
 
 Setup:
 1. Create a .env file in the project root with your API keys:
-   
+
    # Required: LLM API Key (choose one based on your LLM provider)
    OPENAI_API_KEY=your_openai_api_key_here
    # ANTHROPIC_API_KEY=your_anthropic_api_key_here
    # GOOGLE_API_KEY=your_google_api_key_here
-   
+
    # Optional: Custom OpenAI base URL (for proxies or local deployments)
    # OPENAI_BASE_URL=https://api.openai.com/v1
    # Or use a proxy: OPENAI_BASE_URL=https://your-proxy.com/v1
-   
+
    # Optional: Model name (can also be set in code)
    # OPENAI_MODEL=gpt-4o
-   
+
    # Optional: MCP Use Remote Agent
    # MCP_USE_API_KEY=your_mcp_use_api_key
-   
+
    # Optional: E2B Sandbox (for sandboxed execution)
    # E2B_API_KEY=your_e2b_api_key
-   
+
    # Optional: Observability
    # LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
    # LANGFUSE_SECRET_KEY=your_langfuse_secret_key
    # LAMINAR_PROJECT_API_KEY=your_laminar_api_key
-   
+
    # Optional: Debug mode
    # MCP_USE_DEBUG=true
    # DEBUG=true
-   
+
    # Optional: Disable telemetry
    # MCP_USE_ANONYMIZED_TELEMETRY=false
 
@@ -40,19 +40,19 @@ Setup:
    export OPENAI_API_KEY=your_api_key_here
 
 3. Install required packages:
-   
+
    Option A: Install from source (recommended for development):
    cd libraries/python
    pip install -e ".[openai]"
-   
+
    Option B: Install from PyPI:
    pip install python-dotenv langchain-openai mcp-use
 
 4. Run the script:
-   
+
    From libraries/python directory:
    python examples/test_reasoning.py
-   
+
    Or from examples directory:
    cd libraries/python/examples
    python test_reasoning.py
@@ -73,10 +73,10 @@ project_root = script_dir.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv  # noqa: E402
+from langchain_openai import ChatOpenAI  # noqa: E402
 
-from mcp_use import MCPAgent, MCPClient
+from mcp_use import MCPAgent, MCPClient  # noqa: E402
 
 # Load environment variables from .env file
 # This will automatically load OPENAI_API_KEY if it's in the .env file
@@ -104,19 +104,19 @@ async def test_reasoning_with_run():
     }
 
     client = MCPClient.from_dict(config)
-    
+
     # Create LLM with customizable model and base_url from environment variables
     # Both model and base_url can be replaced:
     # - model: any OpenAI-compatible model name (e.g., "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo")
     # - base_url: custom API endpoint (for proxies, local deployments, or OpenAI-compatible services)
     model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Default to gpt-4o if not set
     base_url = os.getenv("OPENAI_BASE_URL", None)  # Use default OpenAI API if not set
-    
+
     llm_kwargs = {"model": model}
     if base_url:
         llm_kwargs["base_url"] = base_url
         print(f"Using custom base_url: {base_url}")
-    
+
     print(f"Using model: {model}")
     llm = ChatOpenAI(**llm_kwargs)
     agent = MCPAgent(llm=llm, client=client, max_steps=10)
@@ -133,7 +133,7 @@ async def test_reasoning_with_run():
 
         print(f"\nFinal Result: {result}")
         print(f"Tools used: {agent.tools_used_names}")
-        
+
         # Get reasoning plan if it was generated
         reasoning_plan = agent.get_reasoning_plan()
         if reasoning_plan:
@@ -166,16 +166,16 @@ async def test_reasoning_with_stream():
     }
 
     client = MCPClient.from_dict(config)
-    
+
     # Create LLM with customizable model and base_url from environment variables
     model = os.getenv("OPENAI_MODEL", "gpt-4o")
     base_url = os.getenv("OPENAI_BASE_URL", None)
-    
+
     llm_kwargs = {"model": model}
     if base_url:
         llm_kwargs["base_url"] = base_url
         print(f"Using custom base_url: {base_url}")
-    
+
     print(f"Using model: {model}")
     llm = ChatOpenAI(**llm_kwargs)
     agent = MCPAgent(llm=llm, client=client, max_steps=10)
@@ -187,7 +187,7 @@ async def test_reasoning_with_stream():
         # Stream with reasoning=True
         print("Streaming with reasoning=True...")
         print("-" * 80)
-        
+
         plan_received = False
         async for chunk in agent.stream(query, reasoning=True):
             if isinstance(chunk, str):
@@ -238,7 +238,7 @@ async def main():
         print("   os.environ['OPENAI_API_KEY'] = 'your_api_key_here'")
         print("\n" + "=" * 80)
         return
-    
+
     print(f"✓ OpenAI API key found (starts with: {api_key[:10]}...)")
 
     try:
