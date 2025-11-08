@@ -494,7 +494,7 @@ class MCPAgent:
         tool_info = "\n".join(tool_info_list) if tool_info_list else "No tools available."
 
         # Create a prompt for the LLM to generate a plan
-        planning_prompt = f"""You are an AI assistant that needs to plan how to answer a user's query using available MCP (Model Context Protocol) tools.
+        planning_prompt = f"""You are an AI assistant that needs to plan how to answer a user's query using available MCP (Model Context Protocol) tools.  # noqa: E501
 
 User Query: {query}
 
