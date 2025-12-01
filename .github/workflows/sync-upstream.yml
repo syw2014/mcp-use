@@ -1,5 +1,9 @@
 name: Sync with Upstream
 
+# Note: This workflow requires a Personal Access Token (PAT) with 'repo' and 'workflow' permissions
+# to be added as a secret named 'WORKFLOW_TOKEN' in the repository settings.
+# This is necessary because GITHUB_TOKEN cannot modify workflow files.
+
 on:
   schedule:
     - cron: "0 3 * * *"  # 每天凌晨 3 点 UTC（北京时间 11 点）
@@ -8,12 +12,15 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout upstream-main
         uses: actions/checkout@v4
         with:
           ref: upstream-main
           fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
 
       - name: Add upstream
         run: |
@@ -33,7 +40,9 @@ jobs:
       - name: Push changes (if merge successful)
         if: steps.merge.outputs.merge_success == 'true'
         run: |
-          git push origin upstream-main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push https://x-access-token:${{ secrets.WORKFLOW_TOKEN }}@github.com/${{ github.repository }}.git upstream-main
 
       - name: Create Pull Request (if conflict)
         if: steps.merge.outputs.merge_success == 'false'
